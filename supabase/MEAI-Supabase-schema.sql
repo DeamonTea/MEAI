@@ -34,9 +34,11 @@ create table if not exists public.unit_items (
   unit_id uuid not null references public.units(id) on delete cascade,
   item_type text not null check (item_type in ('vocabulary','exercise','reading')),
   content jsonb not null,
-  source text not null default 'gemini_parsed' check (source in ('gemini_parsed','cerebras_generated')),
+  source text not null default 'gemini_parsed' check (source in ('gemini_parsed','cerebras_generated','ai_generated')),
   created_at timestamptz not null default now()
 );
+alter table public.unit_items drop constraint if exists unit_items_source_check;
+alter table public.unit_items add constraint unit_items_source_check check (source in ('gemini_parsed','cerebras_generated','ai_generated'));
 
 create table if not exists public.learning_history (
   id uuid primary key default gen_random_uuid(),
@@ -49,6 +51,24 @@ create table if not exists public.learning_history (
   progress_comparison text not null default '',
   created_at timestamptz not null default now()
 );
+
+create table if not exists public.exercise_attempts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  unit_id uuid not null references public.units(id) on delete cascade,
+  set_key text not null,
+  item_key text not null,
+  kind text not null,
+  origin text not null check (origin in ('original','ai')),
+  correct boolean not null default false,
+  score numeric,
+  chosen text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists exercise_attempts_user_created_idx
+  on public.exercise_attempts(user_id, created_at desc);
+create index if not exists exercise_attempts_unit_set_created_idx
+  on public.exercise_attempts(user_id, unit_id, set_key, created_at desc);
 
 create table if not exists public.reminders (
   id uuid primary key default gen_random_uuid(),
@@ -228,7 +248,7 @@ do $$
 declare table_name text;
 begin
   foreach table_name in array array[
-    'users', 'books', 'units', 'unit_items', 'learning_history',
+    'users', 'books', 'units', 'unit_items', 'learning_history', 'exercise_attempts',
     'reminders', 'vocabulary_reviews', 'ai_usage', 'content_reports',
     'admin_audit_logs'
   ] loop
@@ -288,6 +308,14 @@ drop policy if exists learning_history_insert_self on public.learning_history;
 create policy learning_history_insert_self on public.learning_history for insert to authenticated
   with check (user_id = auth.uid());
 grant select, insert on public.learning_history to authenticated;
+
+drop policy if exists exercise_attempts_read_self_or_admin on public.exercise_attempts;
+create policy exercise_attempts_read_self_or_admin on public.exercise_attempts for select to authenticated
+  using (user_id = auth.uid() or public.meai_is_admin());
+drop policy if exists exercise_attempts_insert_self on public.exercise_attempts;
+create policy exercise_attempts_insert_self on public.exercise_attempts for insert to authenticated
+  with check (user_id = auth.uid());
+grant select, insert on public.exercise_attempts to authenticated;
 
 drop policy if exists vocabulary_reviews_read_self_or_admin on public.vocabulary_reviews;
 create policy vocabulary_reviews_read_self_or_admin on public.vocabulary_reviews for select to authenticated
