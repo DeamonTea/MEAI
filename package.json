@@ -1,0 +1,22 @@
+{
+  "name": "meai-next",
+  "productName": "MEAI Next Managed",
+  "version": "3.6.0",
+  "description": "MEAI desktop learning app with Supabase accounts and shared curriculum management",
+  "main": "src/main.cjs",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "pack:win": "electron-packager . MEAI-Next --platform=win32 --arch=x64 --out=dist --overwrite --prune=true"
+  },
+  "dependencies": {
+    "mammoth": "1.13.0",
+    "pdfjs-dist": "6.4.299",
+    "jszip": "3.10.2",
+    "@xmldom/xmldom": "0.8.15"
+  },
+  "devDependencies": {
+    "@electron/packager": "19.0.1",
+    "electron": "44.5.1"
+  }
+}

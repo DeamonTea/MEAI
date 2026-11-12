@@ -1,0 +1,46 @@
+# MEAI Next Managed 3.6 — Windows x64
+
+Bản Electron MEAI Next có đăng nhập Admin/User, thư viện Supabase dùng chung và luồng AI tách theo vai trò.
+
+## Cài đặt lần đầu
+
+1. Giải nén thư mục `MEAI` trên Windows và mở `MEAI.exe`.
+2. Trong Supabase Dashboard, chạy `MEAI-Supabase-schema.sql` ở SQL Editor. Có thể chạy trên schema MEAI cũ để bổ sung `books`, liên kết `units.book_id` và bật RLS.
+3. Ở màn hình đăng nhập, mở Cấu hình Supabase, nhập Project URL gốc cùng key `sb_secret_...` hoặc legacy `service_role`.
+4. Lần cài đặt đầu tiên, schema tạo `admin1 / admin123`; chạy lại schema để cập nhật bảng sẽ không đặt lại mật khẩu. Đổi mật khẩu mặc định sau lần đăng nhập đầu.
+5. Kiểm tra kết nối Supabase ngay trên màn hình cấu hình; giao diện sẽ báo thiếu bảng hoặc sai quyền. Đăng xuất luôn khả dụng cả khi tác vụ AI đang chạy.
+6. Vào Cài đặt AI và nhập key cho những nhà cung cấp sẽ dùng. Mỗi ô chấp nhận nhiều key, phân tách bằng dấu phẩy. Bỏ trống để giữ key cũ; nhập `CLEAR` để xóa nhóm key.
+7. Admin chọn Nhập giáo trình (PDF, DOCX, PPTX, TXT, MD và HTTPS) hoặc Nhập văn bản để dán tài liệu. MEAI chia tài liệu theo Unit và Gemini phân tích học liệu gốc.
+8. Admin thêm tài khoản thủ công hoặc từ Excel `.xlsx`. Trang tính đầu tiên cần cột `username`, `password`, có thể thêm `full_name`, `role`; hệ thống tự băm mật khẩu và bỏ qua tài khoản trùng.
+
+## Vai trò của AI
+
+- **Gemini** (`gemini-3.8-flash` (mặc định), có thể chọn Gemini 3 Flash Preview): phân tích Unit thành từ vựng, bài đọc, bài tập gốc và trả lời câu hỏi theo ngữ cảnh.
+- **Groq**: hội thoại theo chủ đề Unit; chấm bài viết thang 10 và so sánh tối đa ba bài viết gần nhất của cùng user, lưu điểm và nhận xét vào lịch sử. Bản này dùng model Groq `openai/gpt-oss-120b` đang có trong danh sách model hiện hành.
+- **Cerebras**: tạo bộ luyện tập cùng học liệu mở rộng gồm từ vựng, bài tập và bài đọc. Học liệu mở rộng được lưu vào `unit_items` với nguồn `cerebras_generated`. Model mặc định là `qwen-3.8-27b`.
+- Key của từng nhà cung cấp được luân phiên qua các request. Khi gặp 429 hoặc lỗi báo quota/rate limit, ứng dụng thử các key còn lại của nhà cung cấp đó. Quota có thể dùng chung giữa các key trong cùng một tài khoản/project.
+
+## Tính năng học tập bổ sung
+
+- Mỗi Unit hiển thị CEFR khi AI xác định được; từng thẻ từ có IPA nếu Gemini đủ chắc chắn và nút đọc từ bằng giọng tiếng Anh có sẵn trên Windows.
+- Bài luyện AI có trắc nghiệm, điền từ, sắp xếp câu và đọc hiểu; gợi ý ôn được điều chỉnh theo điểm gần đây.
+- Ôn từ dùng lịch lặp lại ngắt quãng, lưu ngày đến hạn trên Supabase theo tài khoản.
+- Hạn mức mặc định là 60 yêu cầu AI mỗi ngày cho mỗi tài khoản. Lượt gọi và token do API trả về được lưu để Admin xem. Chạy lại schema SQL để tạo các bảng `ai_usage` và `vocabulary_reviews`.
+- Admin có thể nhập nội dung từ URL HTTPS bài viết và PPTX. PDF scan, DOC/PPT cũ, OCR ảnh và nhập âm thanh chưa được hỗ trợ. Người học chưa thể tải giáo trình cá nhân. Nút phát âm dùng giọng TTS có sẵn của Windows; ứng dụng chưa chấm âm vị từ microphone; hội thoại hiện chỉ hỗ trợ nhập chữ.
+
+## Theo dõi học tập
+
+Bài luyện tập, bài viết và hội thoại được ghi vào `learning_history`. User chỉ xem lịch sử của mình. Admin có bảng số lượt học, Unit có hoạt động, độ phủ, số bài được chấm, điểm trung bình và lần hoạt động gần nhất theo từng tài khoản; lịch sử chi tiết lọc được theo user. User có điểm luyện tập gần đây, nhận xét so sánh bài viết và lịch sử cá nhân.
+
+Độ phủ là số Unit đã có hoạt động ghi nhận trên tổng Unit của thư viện, không phải xác nhận đã hoàn thành Unit. Bảng admin thống kê trên toàn bộ lịch sử; danh sách chi tiết admin giới hạn 500 hoạt động mới nhất.
+
+## Giới hạn xác thực và phân quyền hiện tại
+
+Đăng nhập hiện dùng bảng username/password riêng, chưa dùng Supabase Auth, JWT, Magic Link, Google hoặc GitHub. Ứng dụng kết nối bằng khóa secret/service_role, khóa này bỏ qua RLS; vì vậy RLS trong schema hiện chặn client anon trực tiếp nhưng chưa giới hạn từng người dùng ở tầng cơ sở dữ liệu. Không triển khai bản desktop hiện tại cho người dùng không tin cậy. Để đáp ứng đầy đủ yêu cầu Supabase Auth/RLS, cần backend Edge Function giữ service_role, chuyển tài khoản sang Supabase Auth và cấu hình OAuth providers trong project.
+
+## Bảo vệ khóa và dữ liệu
+
+- Gemini/Groq/Cerebras keys được lưu mã hóa bằng Windows safeStorage trong hồ sơ người dùng Windows; không được nhúng vào ZIP.
+- Supabase secret/service_role có quyền quản trị. Chỉ dùng ứng dụng trên thiết bị tin cậy. Nếu phân phối cho người dùng không tin cậy, cần chuyển quyền quản trị sang backend/Edge Function.
+- Tài liệu và nội dung học viên được gửi tới nhà cung cấp AI tương ứng khi dùng tính năng đó; chỉ sử dụng tài liệu được phép xử lý theo cách này.
+- PDF scan ảnh cần OCR trước khi nhập. Excel chỉ hỗ trợ `.xlsx`, không hỗ trợ `.xls` cũ.
