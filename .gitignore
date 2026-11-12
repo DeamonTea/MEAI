@@ -19,6 +19,7 @@ build/
 *.zip
 
 # Local data and logs
+*.enc
 *.db
 *.sqlite
 *.sqlite3

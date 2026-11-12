@@ -7,7 +7,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "pack:win": "electron-packager . MEAI-Next --platform=win32 --arch=x64 --out=dist --overwrite --prune=true"
+    "pack:win": "electron-packager . MEAI-Next --platform=win32 --arch=x64 --out=dist --overwrite --prune=true --ignore=\"\\.env|secrets|credentials|\\.enc$|\\.pem$|\\.key$|\\.p12$|\\.pfx$\""
   },
   "dependencies": {
     "mammoth": "1.13.0",

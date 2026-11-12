@@ -5,7 +5,7 @@ Bản Electron MEAI Next có đăng nhập Admin/User, thư viện Supabase dùn
 ## Cài đặt lần đầu
 
 1. Giải nén thư mục `MEAI` trên Windows và mở `MEAI.exe`.
-2. Trong Supabase Dashboard, chạy `MEAI-Supabase-schema.sql` ở SQL Editor. Có thể chạy trên schema MEAI cũ để bổ sung `books`, liên kết `units.book_id` và bật RLS.
+2. Trong Supabase Dashboard, chạy `MEAI-Supabase-schema.sql` ở SQL Editor. Với project đã cài phiên bản trước, chạy lần lượt `supabase/migrations/20261112_review_content_reports.sql`, `supabase/migrations/20261112_security_hardening.sql` và `supabase/migrations/20261112_unit_analysis_meta.sql`.
 3. Ở màn hình đăng nhập, mở Cấu hình Supabase, nhập Project URL gốc cùng key `sb_secret_...` hoặc legacy `service_role`.
 4. Lần cài đặt đầu tiên, schema tạo `admin1 / admin123`; chạy lại schema để cập nhật bảng sẽ không đặt lại mật khẩu. Đổi mật khẩu mặc định sau lần đăng nhập đầu.
 5. Kiểm tra kết nối Supabase ngay trên màn hình cấu hình; giao diện sẽ báo thiếu bảng hoặc sai quyền. Đăng xuất luôn khả dụng cả khi tác vụ AI đang chạy.
@@ -25,6 +25,8 @@ Bản Electron MEAI Next có đăng nhập Admin/User, thư viện Supabase dùn
 - Mỗi Unit hiển thị CEFR khi AI xác định được; từng thẻ từ có IPA nếu Gemini đủ chắc chắn và nút đọc từ bằng giọng tiếng Anh có sẵn trên Windows.
 - Bài luyện AI có trắc nghiệm, điền từ, sắp xếp câu và đọc hiểu; gợi ý ôn được điều chỉnh theo điểm gần đây.
 - Ôn từ dùng lịch lặp lại ngắt quãng, lưu ngày đến hạn trên Supabase theo tài khoản.
+- Từ vựng được đối chiếu nguyên văn với Unit sau khi chuẩn hóa khoảng trắng và dấu nháy. Admin có thể sửa từ; mọi người dùng có thể báo lỗi. Mỗi Unit có trạng thái duyệt, người duyệt và thời gian duyệt.
+- Thẻ Luyện tập AI và Học liệu mở rộng mang nhãn “Do AI tạo — nên đối chiếu giáo trình”; báo lỗi được xem và xử lý trong Quản trị dữ liệu.
 - Hạn mức mặc định là 60 yêu cầu AI mỗi ngày cho mỗi tài khoản. Lượt gọi và token do API trả về được lưu để Admin xem. Chạy lại schema SQL để tạo các bảng `ai_usage` và `vocabulary_reviews`.
 - Admin có thể nhập nội dung từ URL HTTPS bài viết và PPTX. PDF scan, DOC/PPT cũ, OCR ảnh và nhập âm thanh chưa được hỗ trợ. Người học chưa thể tải giáo trình cá nhân. Nút phát âm dùng giọng TTS có sẵn của Windows; ứng dụng chưa chấm âm vị từ microphone; hội thoại hiện chỉ hỗ trợ nhập chữ.
 
@@ -36,7 +38,7 @@ Bài luyện tập, bài viết và hội thoại được ghi vào `learning_hi
 
 ## Giới hạn xác thực và phân quyền hiện tại
 
-Đăng nhập hiện dùng bảng username/password riêng, chưa dùng Supabase Auth, JWT, Magic Link, Google hoặc GitHub. Ứng dụng kết nối bằng khóa secret/service_role, khóa này bỏ qua RLS; vì vậy RLS trong schema hiện chặn client anon trực tiếp nhưng chưa giới hạn từng người dùng ở tầng cơ sở dữ liệu. Không triển khai bản desktop hiện tại cho người dùng không tin cậy. Để đáp ứng đầy đủ yêu cầu Supabase Auth/RLS, cần backend Edge Function giữ service_role, chuyển tài khoản sang Supabase Auth và cấu hình OAuth providers trong project.
+Đăng nhập hiện dùng bảng username/password riêng, chưa dùng Supabase Auth, JWT, Magic Link, Google hoặc GitHub. Ứng dụng kết nối bằng khóa secret/service_role, khóa này bỏ qua RLS; các kiểm tra quyền Admin và người báo được thực hiện trong tiến trình chính Electron. Migration có policy cho Supabase Auth khi `auth.uid()` trùng `public.users.id`, nhưng policy đó không áp dụng cho các request service_role của desktop. Không triển khai bản desktop hiện tại cho người dùng không tin cậy. Muốn RLS thực sự ràng buộc từng người dùng trong desktop, cần chuyển thao tác qua Supabase Auth hoặc Edge Function/backend tin cậy.
 
 ## Bảo vệ khóa và dữ liệu
 
@@ -44,3 +46,14 @@ Bài luyện tập, bài viết và hội thoại được ghi vào `learning_hi
 - Supabase secret/service_role có quyền quản trị. Chỉ dùng ứng dụng trên thiết bị tin cậy. Nếu phân phối cho người dùng không tin cậy, cần chuyển quyền quản trị sang backend/Edge Function.
 - Tài liệu và nội dung học viên được gửi tới nhà cung cấp AI tương ứng khi dùng tính năng đó; chỉ sử dụng tài liệu được phép xử lý theo cách này.
 - PDF scan ảnh cần OCR trước khi nhập. Excel chỉ hỗ trợ `.xlsx`, không hỗ trợ `.xls` cũ.
+
+
+## Bảo mật tài khoản và nhật ký Admin
+
+- Tài khoản tạo thủ công hoặc từ Excel phải đổi mật khẩu tạm ngay lần đăng nhập đầu tiên; mật khẩu mới tối thiểu 10 ký tự.
+- Chỉ Admin thấy và dùng màn hình Cài đặt AI. Các ô API key luôn để trống; số lượng key đã lưu chỉ dùng làm gợi ý, ứng dụng không điền lại giá trị khóa.
+- Các thao tác tạo tài khoản, nhập Excel, thay nhóm API key và duyệt Unit được ghi trong Nhật ký thao tác Admin. Đổi quyền được ghi bằng trigger trong Supabase.
+- Với Supabase đã có dữ liệu, chạy lần lượt supabase/migrations/20261112_review_content_reports.sql và supabase/migrations/20261112_security_hardening.sql, sau đó supabase/migrations/20261112_unit_analysis_meta.sql. Hoặc chạy file schema tổng hợp trên project mới.
+- Khóa AI và khóa Supabase được mã hóa bởi Windows safeStorage trong hồ sơ Windows; không đặt chúng trong source code hay thư mục đóng gói.
+
+RLS mới áp dụng cho Supabase Auth có auth.uid() tương ứng public.users.id. MEAI hiện vẫn đăng nhập riêng và dùng secret/service_role key từ tiến trình chính; key này bỏ qua RLS. Không coi chính sách SQL là ranh giới bảo vệ dữ liệu cho bản desktop hiện tại. Muốn bảo đảm phân quyền theo từng người dùng trên Supabase cần chuyển sang Supabase Auth hoặc backend/Edge Function tin cậy.

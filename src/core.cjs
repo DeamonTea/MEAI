@@ -18,20 +18,23 @@ function splitUnits(pages){
  return groups.filter(g=>g.text.length>250).map((g,i)=>{const ps=[...g.text.matchAll(/\[\[PAGE:(\d+)\]\]/g)].map(m=>Number(m[1]));if(g.startPage&&!ps.includes(g.startPage))ps.unshift(g.startPage);return {title:g.title||`Phần ${i+1}`,pages:[...new Set(ps)],source:g.text.replace(/\[\[PAGE:\d+\]\]/g,'').trim()}})
 }
 function norm(s){return String(s||'').toLowerCase().replace(/\s+/g,' ').trim()}
+function normalizeEvidenceText(s){return String(s||'').normalize('NFKC').replace(/[\u2018\u2019\u201a\u201b\u2032\u0060\u00b4]/g,"'").replace(/[\u201c\u201d\u201e\u201f\u2033]/g,'"').replace(/[\s\u00a0]+/g,' ').trim()}
+function verifyVocabularySource(item,source){const sourceText=normalizeEvidenceText(source),evidence=String(item?.evidence||'').trim(),example=String(item?.example||'').trim(),hasEvidence=!!evidence,hasExample=!!example,evidenceVerified=hasEvidence&&sourceText.includes(normalizeEvidenceText(evidence)),exampleVerified=hasExample?sourceText.includes(normalizeEvidenceText(example)):null;return {...item,sourceVerified:evidenceVerified&&(!hasExample||exampleVerified),evidenceVerified,exampleVerified,sourceCheckedAt:new Date().toISOString()}}
+function verifyVocabularyList(items,source){return (items||[]).map(item=>verifyVocabularySource(item,source))}
 function validateAnalysis(x,source){
  if(!x||!Array.isArray(x.vocabulary)||!Array.isArray(x.readings)||!Array.isArray(x.exercises)||!Array.isArray(x.grammar)||typeof x.summary!=='string')throw Error('AI trả về thiếu trường phân tích. Chưa lưu kết quả.');
  let rejected=0;
  const excerpt=(v)=>{if(typeof v!=='string'||!v.trim()||v.length>1800||!norm(source).includes(norm(v))){rejected++;return null}return v.trim()};
- const vocabulary=[];
- for(const v of x.vocabulary.slice(0,150)){const term=String(v.term||'').trim().slice(0,120),evidence=excerpt(v.evidence);if(!term||!evidence||!norm(evidence).includes(norm(term))){if(term&&evidence===null){}else rejected++;continue}vocabulary.push({term,ipa:String(v.ipa||'').slice(0,80),meaning:String(v.meaning||'Chưa xác định nghĩa từ nguồn').slice(0,400),partOfSpeech:String(v.partOfSpeech||'Chưa nêu trong nguồn').slice(0,60),example:typeof v.example==='string'&&norm(source).includes(norm(v.example))?v.example.slice(0,500):'',evidence,page:Number.isFinite(Number(v.page))?Number(v.page):null})}
+  const vocabulary=[];
+  for(const v of x.vocabulary.slice(0,150)){const term=String(v.term||'').trim().slice(0,120);if(!term){rejected++;continue}const evidence=typeof v.evidence==='string'?v.evidence.trim().slice(0,1800):'',example=typeof v.example==='string'?v.example.trim().slice(0,500):'';vocabulary.push(verifyVocabularySource({term,ipa:String(v.ipa||'').slice(0,80),meaning:String(v.meaning||'Chưa xác định nghĩa từ nguồn').slice(0,400),partOfSpeech:String(v.partOfSpeech||'Chưa nêu trong nguồn').slice(0,60),example,evidence,page:Number.isFinite(Number(v.page))?Number(v.page):null},source))}
  const readings=[];
  for(const v of x.readings.slice(0,30)){const evidence=excerpt(v.evidence);if(!evidence)continue;const content=typeof v.content==='string'&&v.content.length<=12000&&norm(source).includes(norm(v.content))?v.content:evidence;readings.push({title:String(v.title||'Bài đọc').slice(0,160),content,summary:String(v.summary||'').slice(0,600),page:Number.isFinite(Number(v.page))?Number(v.page):null})}
  const exercises=[];
  for(const v of x.exercises.slice(0,100)){const evidence=excerpt(v.evidence);if(!evidence)continue;const answerEvidence=typeof v.answerEvidence==='string'&&norm(source).includes(norm(v.answerEvidence))?v.answerEvidence:'';const answer=answerEvidence?String(v.answer||'').slice(0,300):'';exercises.push({type:String(v.type||'Bài tập').slice(0,80),question:evidence,options:Array.isArray(v.options)?v.options.slice(0,8).map(s=>String(s).slice(0,200)):[],answer,answerEvidence,page:Number.isFinite(Number(v.page))?Number(v.page):null})}
  const grammar=[];
  for(const v of x.grammar.slice(0,50)){const evidence=excerpt(v.evidence);if(!evidence)continue;grammar.push({title:String(v.title||'Ngữ pháp').slice(0,150),explanation:String(v.explanation||'').slice(0,900),evidence})}
- const warnings=[];if(rejected)warnings.push(`Đã bỏ ${rejected} mục không có dẫn chứng nguyên văn kiểm chứng được.`);if(!vocabulary.length)warnings.push('Chưa trích xuất được từ vựng có dẫn chứng đủ rõ.');
+  const warnings=[];if(rejected)warnings.push(`Đã bỏ ${rejected} mục không có dẫn chứng nguyên văn kiểm chứng được.`);const unverified=vocabulary.filter(v=>!v.sourceVerified).length;if(unverified)warnings.push(`${unverified} từ vựng có dẫn chứng chưa khớp nguyên văn với tài liệu nguồn.`);if(!vocabulary.length)warnings.push('Chưa trích xuất được từ vựng có dẫn chứng đủ rõ.');
  const levels=['A1','A2','B1','B2','C1','C2'],cefr=levels.includes(String(x.cefr||'').toUpperCase())?String(x.cefr).toUpperCase():'Chưa xác định';
  return {summary:x.summary.slice(0,1800),cefr,cefrRationale:String(x.cefrRationale||'').slice(0,400),units:Array.isArray(x.units)?x.units.slice(0,20).map(String):[],vocabulary,readings,exercises,grammar,filteredOut:Array.isArray(x.filteredOut)?x.filteredOut.slice(0,30).map(String):[],validationWarnings:warnings};
 }
-module.exports={makeId,hash,cleanPageText,splitUnits,validateAnalysis};
+module.exports={makeId,hash,cleanPageText,splitUnits,validateAnalysis,normalizeEvidenceText,verifyVocabularySource,verifyVocabularyList};
